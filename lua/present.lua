@@ -19,7 +19,7 @@ local M = {}
 ---}
 
 ---@param config vim.api.keyset.win_config
----@return { buf: integer, win: integer }
+---@return present.Float
 local create_floating_window = function(config)
     local buf = vim.api.nvim_create_buf(false, true)
     local win = vim.api.nvim_open_win(buf, false, config)
@@ -126,6 +126,7 @@ local state = {
     floats = {},
 }
 
+---@param title string
 local set_header = function(title)
     local width = vim.o.columns
 
@@ -135,12 +136,14 @@ local set_header = function(title)
     vim.api.nvim_buf_set_lines(state.floats.header.buf, 0, -1, false, { centered })
 end
 
+---@param idx uinteger
 local set_footer = function(idx)
     local foot = string.format("%u/%u", idx, #state.slides.slides)
 
     vim.api.nvim_buf_set_lines(state.floats.footer.buf, 0, -1, false, { foot })
 end
 
+---@param idx uinteger
 local set_slide = function(idx)
     local slide = state.slides.slides[idx]
 
@@ -192,6 +195,15 @@ local create_autocmds = function()
     })
 end
 
+---@param mode string|string[]
+---@param lhs string
+---@param rhs string|function
+local create_keymap = function(mode, lhs, rhs)
+    vim.keymap.set(mode, lhs, rhs, {
+        buffer = state.floats.body.buf,
+    })
+end
+
 M.start_presentation = function(opts)
     opts = opts or {}
     opts.bufnr = opts.bufnr or 0
@@ -204,11 +216,11 @@ M.start_presentation = function(opts)
         state.floats[name] = win
     end
 
+    vim.api.nvim_set_current_win(state.floats.body.win)
+
     for option, config in pairs(state.restore) do
         vim.opt[option] = config.present
     end
-
-    vim.api.nvim_set_current_win(state.floats.body.win)
 
     vim.api.nvim_create_autocmd("BufLeave", {
         buffer = state.floats.body.buf,
@@ -224,13 +236,9 @@ M.start_presentation = function(opts)
         end,
     })
 
-    local keymap_buf = {
-        buffer = state.floats.body.buf,
-    }
-
-    vim.keymap.set("n", "n", M.next_slide, keymap_buf)
-    vim.keymap.set("n", "p", M.prev_slide, keymap_buf)
-    vim.keymap.set("n", "q", M.quit_presentation, keymap_buf)
+    create_keymap("n", "n", M.next_slide)
+    create_keymap("n", "p", M.prev_slide)
+    create_keymap("n", "q", M.quit_presentation)
 
     local lines = vim.api.nvim_buf_get_lines(opts.bufnr, 0, -1, false)
     state.slides = parse_slides(lines)
